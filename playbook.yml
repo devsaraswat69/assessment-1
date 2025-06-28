@@ -1,0 +1,82 @@
+---
+- name: Provision EC2 instance, install Docker, and deploy Nginx
+  hosts: localhost
+  gather_facts: false
+  vars:
+    ec2_key_name: your-key-name
+    ec2_instance_type: t2.micro
+    ec2_image: ami-0c55b159cbfafe1f0  # Amazon Linux 2 (ap-south-1)
+    ec2_region: ap-south-1
+    security_group: ansible-sg
+    subnet_id: subnet-xxxxxxx
+    instance_tag: AnsibleEC2Instance
+
+  tasks:
+    - name: Launch EC2 instance
+      amazon.aws.ec2_instance:
+        key_name: "{{ ec2_key_name }}"
+        instance_type: "{{ ec2_instance_type }}"
+        image_id: "{{ ec2_image }}"
+        region: "{{ ec2_region }}"
+        wait: true
+        count: 1
+        instance_tags:
+          Name: "{{ instance_tag }}"
+        network:
+          assign_public_ip: true
+          subnet_id: "{{ subnet_id }}"
+          security_groups: [ "{{ security_group }}" ]
+      register: ec2_result
+
+    - name: Add new instance to inventory
+      add_host:
+        name: "{{ item.public_ip_address }}"
+        groups: launched
+      loop: "{{ ec2_result.instances }}"
+    
+    - name: Wait for SSH to come up
+      wait_for:
+        host: "{{ item.public_ip_address }}"
+        port: 22
+        delay: 10
+        timeout: 300
+        state: started
+      loop: "{{ ec2_result.instances }}"
+
+- name: Install Docker and run Nginx with custom HTML
+  hosts: launched
+  become: yes
+  vars:
+    ansible_user: ec2-user
+  tasks:
+    - name: Install Docker
+      yum:
+        name: docker
+        state: present
+
+    - name: Start and enable Docker service
+      service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Create custom HTML file
+      copy:
+        content: |
+          <!DOCTYPE html>
+          <html>
+          <head><title>Welcome</title></head>
+          <body><h1>Hello from Nginx inside Docker, deployed by Ansible!</h1></body>
+          </html>
+        dest: /home/ec2-user/index.html
+
+    - name: Run Nginx container
+      community.docker.docker_container:
+        name: nginx
+        image: nginx
+        state: started
+        restart_policy: always
+        ports:
+          - "80:80"
+        volumes:
+          - /home/ec2-user/index.html:/usr/share/nginx/html/index.html:ro
