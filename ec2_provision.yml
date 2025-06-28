@@ -1,0 +1,19 @@
+- name: Provision EC2 instance
+  hosts: localhost
+  gather_facts: False
+  tasks:
+    - name: Launch EC2 instance
+      amazon.aws.ec2_instance:
+        key_name: "{{ ec2_key_name }}"
+        instance_type: "{{ ec2_instance_type }}"
+        image_id: "{{ ec2_image }}"
+        wait: true
+        region: "{{ ec2_region }}"
+        count: 1
+        instance_tags:
+          Name: AnsibleEC2Instance
+        network:
+          assign_public_ip: true
+          subnet_id: "{{ vpc_subnet_id }}"
+          security_groups: [ "{{ security_group }}" ]
+      register: ec2
