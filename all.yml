@@ -1,0 +1,6 @@
+ec2_key_name: your-key-name
+ec2_instance_type: t2.micro
+ec2_image: ami-0c55b159cbfafe1f0  # Example for Amazon Linux 2 in ap-south-1
+ec2_region: ap-south-1
+security_group: ansible-sg
+vpc_subnet_id: subnet-xxxxxxx
